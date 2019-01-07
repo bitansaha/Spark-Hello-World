@@ -3,7 +3,7 @@ package com.spark.app
 import com.spark.app.model.Person
 import org.apache.spark.SparkContext
 
-object RDDFunctions extends App {
+object RDDTransformationFunctions extends App {
   implicit val sc = JobSession.sparkContext
   //testUnion
   //testIntersection
@@ -68,7 +68,8 @@ object RDDFunctions extends App {
 
   /**
     * Cartesian creates a pair of each element from RDD_1 with an element from RDD_2, again an expensive operation as
-    * shuffling is required across all partitions of both the RDD's
+    * shuffling is required to push the elements of the second RDD across all partitions to all partitions of the first
+    * RDD
     * @param sc
     */
   def testCartesian(implicit sc: SparkContext): Unit = {
@@ -86,7 +87,7 @@ object RDDFunctions extends App {
     val data = 1 to 100 toArray
     val rdd = sc.parallelize(data)
 
-    // creating a sample size that is half the size of the original data, with out repeating one element twice
+    // creating a sample size that is half the size of the original data, with out repetition
     rdd.sample(false, 0.5).collect().foreach(println)
   }
 
