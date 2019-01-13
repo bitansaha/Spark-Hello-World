@@ -7,7 +7,8 @@ object RDDKeyValueFunctions extends App {
   implicit val sc = JobSession.sparkContext
   //testReduceByKey
   //testFoldByKey
-  testCombineByKey
+  //testCombineByKey
+  testReduceByWithParallelism
 
   /**
     * The inner working of 'reduceByKey' and it's variants 'foldByKey' and 'combineByKey' can be depicted as follows:
@@ -99,5 +100,22 @@ object RDDKeyValueFunctions extends App {
       }
     ).collect().foreach(println)
 
+  }
+
+  /**
+    * All reduceBY_ functions has an overloaded method which takes 'numPartitions' as an input and shuffles all locally
+    * reduced key value pairs into that many partitions thereby either reducing or increasing the degree of parallelism
+    * beyond this stage.
+    * @param sc
+    */
+  def testReduceByWithParallelism (implicit sc: SparkContext) : Unit = {
+    val data = Array(("A", 1), ("B", 1), ("A", 1), ("A", 2), ("B", 3))
+
+    // key/value paired RDD
+    val rdd = sc.parallelize(data, 4)
+
+    println("Initial number of partitions - " + rdd.getNumPartitions)
+
+    println("Number of partitions after reduce call - " + rdd.reduceByKey(_ + _, 2).getNumPartitions)
   }
 }
