@@ -8,7 +8,13 @@ object RDDKeyValueFunctions extends App {
   //testReduceByKey
   //testFoldByKey
   //testCombineByKey
-  testReduceByWithParallelism
+  //testReduceByWithParallelism
+  //testGroupByKey
+  //testCoGroup
+  //testInnerJoin
+  //testLeftOuterJoin
+  //testRightOuterJoin
+  testFullOuterJoin
 
   /**
     * The inner working of 'reduceByKey' and it's variants 'foldByKey' and 'combineByKey' can be depicted as follows:
@@ -103,7 +109,7 @@ object RDDKeyValueFunctions extends App {
   }
 
   /**
-    * All reduceBY_ functions has an overloaded method which takes 'numPartitions' as an input and shuffles all locally
+    * All _ByKey functions has an overloaded method which takes 'numPartitions' as an input and shuffles all locally
     * reduced key value pairs into that many partitions thereby either reducing or increasing the degree of parallelism
     * beyond this stage.
     * @param sc
@@ -117,5 +123,109 @@ object RDDKeyValueFunctions extends App {
     println("Initial number of partitions - " + rdd.getNumPartitions)
 
     println("Number of partitions after reduce call - " + rdd.reduceByKey(_ + _, 2).getNumPartitions)
+  }
+
+  /**
+    * The primary difference between groupByKey and reduce/fold/combineByKey is the fact that in groupByKey all Key Value
+    * pairs across all partitions for a given Key are shuffled to a Spark/System provided partition and the resultant
+    * RDD contains the Key and an Iterable with all collective Values for a given Key. Where as reduceByKey first reduces
+    * all Values for a given Key locally and then shuffles the locally reduced Values of each Key to a Spark/System
+    * provided partition, hence clearly network bandwidth required for groupByKey is far larger than reduceByKey for the
+    * purpose of shuffling. In-case if we want to group and reduce we should never use groupByKey and then reduce the
+    * iterable rather we should use reduceByKey or some variant of it
+    * @param sc
+    */
+  def testGroupByKey (implicit sc: SparkContext) : Unit = {
+    val data = Array(("A", 1), ("B", 1), ("A", 1), ("A", 2), ("B", 3))
+
+    // key/value paired RDD
+    val rdd = sc.parallelize(data, 4)
+
+    rdd.groupByKey().map(_ match {case (key, values) => (key, values.sum)}).collect().foreach(println)
+  }
+
+  /**
+    * CoGroup performs a groupByKey over multiple RDD's with similar Key type resulting in a Key and Iterable of Values
+    * for every coGrouped RDD for a given Key. Hence the output is Key with a Tuple of the Iterable of Values of each
+    * coGrouped RDD. (Key, (Iterable[RDD1_Values], Iterable[RDD2_Values]))
+    * coGroup can also be thought about as full join for multiple RDD's
+    * @param sc
+    */
+  def testCoGroup (implicit sc: SparkContext) : Unit = {
+    val data1 = Array(("A", 1), ("B", 1), ("A", 1), ("A", 2), ("B", 3))
+    val data2 = Array(("A", "ABC"), ("B", "DEF"), ("A", "GHI"), ("A", "JKL"), ("B", "MNO"))
+    val data3 = Array(("A", true), ("B", false), ("A", true), ("A", false), ("B", true))
+
+    val rdd1 = sc.parallelize(data1)
+    val rdd2 = sc.parallelize(data2)
+    val rdd3 = sc.parallelize(data3)
+
+    rdd1.cogroup(rdd2).cogroup(rdd3).collect().foreach(println)
+  }
+
+  /**
+    * All Joins uses coGroup internally to join not multiple but two RDD's with similar Key types. The output is the Key
+    * and a Tuple of both the values from both the RDD's. For inner-join any Key which does not exists in both the RDD's
+    * is dropped from the resultant RDD. In case there are more than One Value for a given Key in either or both of the
+    * RDD's then this results in multiple rows in the output RDD with the same Key and Value being a pair between a value
+    * from RDD_1 and RDD_2.
+    * All Joins trigger a shuffle across all partitions and hence are quite expensive.
+    * @param sc
+    */
+  def testInnerJoin (implicit sc: SparkContext) : Unit = {
+    val data1 = Array(("A", 1), ("B", 1), ("A", 2), ("C", 4))
+    val data2 = Array(("A", true), ("B", false), ("A", false), ("D", false))
+
+    val rdd1 = sc.parallelize(data1)
+    val rdd2 = sc.parallelize(data2)
+
+    rdd1.join(rdd2).collect().foreach(println)
+  }
+
+  /**
+    * Retains common join properties from above. Shows all Key and Values from Left RDD irrespective of there being a match
+    * available in right RDD. The output is Key and Pair of Value from Left RDD and Optional Value from Right RDD (as
+    * right RDD value might not be available)
+    * @param sc
+    */
+  def testLeftOuterJoin (implicit sc: SparkContext) : Unit = {
+    val data1 = Array(("A", 1), ("B", 1), ("A", 2), ("C", 4))
+    val data2 = Array(("A", true), ("B", false), ("A", false), ("D", false))
+
+    val rdd1 = sc.parallelize(data1)
+    val rdd2 = sc.parallelize(data2)
+
+    rdd1.leftOuterJoin(rdd2).collect().foreach(println)
+  }
+
+  /**
+    * Retains common join properties from above. Shows all Key and Values from Right RDD irrespective of there being a match
+    * available in Left RDD. The output is Key and Pair of  Optional Value from Left RDD and Value from Right RDD
+    * @param sc
+    */
+  def testRightOuterJoin (implicit sc: SparkContext) : Unit = {
+    val data1 = Array(("A", 1), ("B", 1), ("A", 2), ("C", 4))
+    val data2 = Array(("A", true), ("B", false), ("A", false), ("D", false))
+
+    val rdd1 = sc.parallelize(data1)
+    val rdd2 = sc.parallelize(data2)
+
+    rdd1.rightOuterJoin(rdd2).collect().foreach(println)
+  }
+
+  /**
+    * Retains common join properties from above. Shows all Key and Values from Right and Left RDD's irrespective of there
+    * being a match available in the other RDD. The output is Key and Pair of Optional Value from Left RDD and Optional
+    * Value from Right RDD
+    * @param sc
+    */
+  def testFullOuterJoin (implicit sc: SparkContext) : Unit = {
+    val data1 = Array(("A", 1), ("B", 1), ("A", 2), ("C", 4))
+    val data2 = Array(("A", true), ("B", false), ("A", false), ("D", false))
+
+    val rdd1 = sc.parallelize(data1)
+    val rdd2 = sc.parallelize(data2)
+
+    rdd1.fullOuterJoin(rdd2).collect().foreach(println)
   }
 }
