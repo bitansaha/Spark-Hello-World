@@ -1,5 +1,6 @@
 package com.spark.app
 
+import com.spark.app.model.Person
 import org.apache.spark.SparkContext
 
 object RDDKeyValueFunctions extends App {
@@ -14,7 +15,8 @@ object RDDKeyValueFunctions extends App {
   //testInnerJoin
   //testLeftOuterJoin
   //testRightOuterJoin
-  testFullOuterJoin
+  //testFullOuterJoin
+  testSortByKey
 
   /**
     * The inner working of 'reduceByKey' and it's variants 'foldByKey' and 'combineByKey' can be depicted as follows:
@@ -228,4 +230,49 @@ object RDDKeyValueFunctions extends App {
 
     rdd1.fullOuterJoin(rdd2).collect().foreach(println)
   }
+
+  /**
+    * sortByKey takes a flag for ascending/descending (and a non-compulsory 'number of partitions') and Sort's the RDD
+    * by the Key and an implicit Comparator to compare complex Key types.
+    *
+    * sortBy works with non Key-Value pair RDD's and takes a Function to pin point which attributes should be used as the
+    * Key to perform the Sort, a flag for ascending/descending
+    * @param sc
+    */
+  def testSortByKey (implicit sc: SparkContext) : Unit = {
+    // Sorting Key Value pair RDD
+    val data1 = Array(("A", 1), ("B", 1), ("A", 2), ("C", 4))
+
+    val rdd1 = sc.parallelize(data1)
+
+    rdd1.sortByKey(true).collect().foreach(println)
+
+    // Sorting Key Value pair RDD with complex Key hence the Comparator
+    val data2 = Array((("A", 1), Person("A", 10)), (("B", 1), Person("B", 10)), (("A", 2), Person("C", 10)), (("C", 4), Person("D", 10)))
+
+    val rdd2 = sc.parallelize(data2)
+
+    implicit val personComparator = new Ordering[Tuple2[String, Int]] {
+      override def compare(pair1: (String, Int), pair2: (String, Int)): Int = {
+        (pair1, pair2) match {
+          case ((pair1Key, pair1Value), (pair2Key, pair2Value)) =>
+            if (pair1Key.compareTo(pair2Key) == 0) pair1Value.compareTo(pair2Value) else pair1Key.compareTo(pair2Key)
+        }
+      }
+    }
+
+    rdd2.sortByKey().collect().foreach(println)
+
+    // Sorting non Key Value pair RDD hence the function to pinpoint the attribute's meant to behave as the Key
+    val data3 = Array(Person("A", 10), Person("A", 20), Person("B", 40), Person("C", 20))
+
+    val rdd3 = sc.parallelize(data3)
+
+    rdd3.sortBy(_.name, true).collect().foreach(println)
+    rdd3.sortBy(_.name, false).collect().foreach(println)
+
+    rdd3.sortBy(_.age, true).collect().foreach(println)
+    rdd3.sortBy(_.age, false).collect().foreach(println)
+  }
+
 }
