@@ -112,7 +112,7 @@ object RDDActionFunctions extends App {
   def testCountByValue(implicit sc: SparkContext): Unit = {
     val personArray = Array(Person("A"), Person("B"), Person("A"))
     val rdd = sc.parallelize(personArray)
-    
+
     rdd.countByValue().foreach { case (person: Person, count: Long) => println("Person - " + person + ", Count - " + count) }
   }
 
